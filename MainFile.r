@@ -1,24 +1,36 @@
 library("GNAR")
 library("igraph")
 
+int_to_mat <- function(i, size){
+    # Convert i to binary
+    binary <- as.integer(intToBits(i))
+    length <- size*(size-1)/2
+    binary <- binary[1:length]
+    # Convert binary to a matrix
+    matrix <- matrix(0,size,size)
+    matrix[upper.tri(matrix)] <- binary
+    return(matrix)
+}
+
+mat_to_int <- function(matrix){
+    return(sum(matrix[upper.tri(matrix)]*2^(0:(length(matrix[upper.tri(matrix)])-1))))
+}
+
 generateError <- function(size = 5, k = 1, seed = NA){
     if (!is.na(seed)){
         set.seed(seed)
-        print("Seed is set")
     }
     graph <- erdos.renyi.game(size, p=0.3, type = "gnp")
-    data <- GNARsim(n=200, net = igraphtoGNAR(graph), alphaParams = list(c(rep(0.2,5))), betaParams = list(c(0.5)))
+    data <- GNARsim(n=200, net = igraphtoGNAR(graph), alphaParams = list(c(rep(0.2,size))), betaParams = list(c(0.5)))
     data.ts <- ts(data)
     errors <- c()
     numberofGraphs <- 2^(size*(size-1)/2)-1
     for (i in 1:numberofGraphs){
         # Convert i to binary
-        binary <- as.integer(intToBits(i))
-        binary <- binary[1:10]
-        # Convert binary to a matrix
-        matrix <- matrix(0,size,size)
-        matrix[upper.tri(matrix)] <- binary
-        # Convert matrix to a graph
+        if (i %% 100 == 0) {
+            print(i)
+        }
+        matrix <- int_to_mat(i, size)
         err <- 0
         net <- matrixtoGNAR(matrix)
         for (j in 1:k){
@@ -29,6 +41,7 @@ generateError <- function(size = 5, k = 1, seed = NA){
     }
     return(errors)
 }
+
 generateErrorAll <- function(size = 5, k = 10, seed = NA){
     if (!is.na(seed)){
         set.seed(seed)
@@ -59,29 +72,30 @@ generateErrorAll <- function(size = 5, k = 10, seed = NA){
     }
         return(errors)
 }
+getRandomSample <- function(size = 5, errors, sample = 100, erdos_prob=0.3){
+    err <- c()
+    for (i in 1:sample){
+        graph <- erdos.renyi.game(size, p=erdos_prob, type = "gnp")
+        matrix <- as_adjacency_matrix(graph, type = "upper")
+        i <- mat_to_int(matrix)
+        err <- c(err, errors[i])
+    }
+    return(err)
+} 
 
-# set.seed(1234)
-# graph <- erdos.renyi.game(5, p=0.3, type = "gnp")
-# data <- GNARsim(n=250, net = igraphtoGNAR(graph), alphaParams = list(c(rep(0.2,5))), betaParams = list(c(0.5)))
-# data.ts <- ts(data)
-# net <- igraphtoGNAR(graph)
-# err <- 0
-# for (j in 1:40){
-#     fit <- GNARfit(vts = data.ts[j:(249-40+j),], net = net, alphaOrder = 1, betaOrder = c(1))
-#     err <- err + sum((data[(250-40+j),] - predict(fit))^2)
-# }
-# err <- err/40
-# summary(as.numeric(errorsAll[40,]))
+error <- generateError(size=6, k=40, seed = 1234)
+write.table(error, file = "./error_n=6_k=40.txt", sep = "\t")
+error <- read.table("./error_n=6_k=40.txt", sep = "\t")
+error <- as.matrix(error)
+sample_error <- getRandomSample(size=6, errors = error, sample = 1000, erdos_prob = 0.1)
 
-error <- generateError(size=5, k=40, seed = 1234)
-write.table(error, file = "./error_n=5_k=40.txt", sep = "\t")
-error <- read.table("./error_n=5_k=40.txt", sep = "\t")
-
-
-
-pdf(file="./histogram_n=5_k=40_part2.pdf")
-# plot histogram of errors 
-hist(as.numeric(error), breaks = 100, col = "lightblue", border = "black", xlab = "Error", main = "Histogram of Errors")
-mtext("Histogram representing distribution of errors for data \n simulated from a GNAR(1,[1]) for a 5-node network, k=40", side=3)
+# Plot histogram of error and sample_errors
+pdf(file="./hist(6,40).pdf")
+# plot histogram of errors
+hist(as.numeric(error), breaks = 100, col = "lightblue", border = "black", xlab = "Error", main = "Histogram of Errors", xlim = range(c(error, sample_error)), ylim = c(0, 4000))
+hist(as.numeric(sample_error), breaks = 100, col = "#187534", border = "black", add = TRUE)
+legend("topright", legend = c("Errors", "Sample Errors"), fill = c("lightblue", "#187534"))
 dev.off()
 
+summary(error)
+summary(sample_error)
