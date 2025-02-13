@@ -72,11 +72,11 @@ hist(as.numeric(sample_error), breaks = 100, col = "#187534", border = "black", 
 legend("topright", legend = c("Errors", "Sample Errors"), fill = c("lightblue", "#187534"))
 dev.off()
 
-# min_error <- 0
-# for (i in 1:100){
-#     sample_error <- getRandomSample(size=6, errors = error, sample = 5, erdos_prob = 0.1)
-#     min_error <- min_error + min(sample_error)
-# }
-# print(min_error/100)
-# summary(error)
-# summary(sample_error)
+min_error <- 0
+for (i in 1:100){
+    sample_error <- getRandomSample(size=6, errors = error, sample = 5, erdos_prob = 0.1)
+    min_error <- min_error + min(sample_error)
+}
+print(min_error/100)
+summary(error)
+summary(sample_error)
