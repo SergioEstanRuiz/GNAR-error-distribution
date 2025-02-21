@@ -16,17 +16,16 @@ mat_to_int <- function(matrix){
     return(sum(matrix[upper.tri(matrix)]*2^(0:(length(matrix[upper.tri(matrix)])-1))))
 }
 
-generateError <- function(size = 5, k = 1, seed = NA, order = 1){
+generateError <- function(size = 5, k = 1, n=500, seed = NA, order = 1, globalAlpha = TRUE){
     if (!is.na(seed)){
         set.seed(seed)
     }
     graph <- erdos.renyi.game(size, p=0.3, type = "gnp")
     # Generate list of length size with random values between -0.5 and 0.5
-    # 
-    alphaParams <- list(c(runif(size*order, min=-0.5, max=0.5)))
     alphaParams <- lapply(1:order, function(x) runif(size, min=-0.5, max=0.5))
     betaParams <- lapply(1:order, function(x) runif(1, min=-0.5, max=0.5))
-    data <- GNARsim(n=200, net = igraphtoGNAR(graph), alphaParams = alphaParams, betaParams = betaParams)
+    data <- GNARsim(n=n, net = igraphtoGNAR(graph), alphaParams = alphaParams, betaParams = betaParams)
+
     data.ts <- ts(data)
     errors <- c()
     numberofGraphs <- 2^(size*(size-1)/2)-1
@@ -39,14 +38,13 @@ generateError <- function(size = 5, k = 1, seed = NA, order = 1){
         err <- 0
         net <- matrixtoGNAR(matrix)
         for (j in 1:k){
-            fit <- GNARfit(vts = data.ts[j:(199-k+j),], net = net, alphaOrder = 2, betaOrder = c(1,1))
-            err <- err + sum((data[(200-k+j),] - predict(fit))^2)
+            fit <- GNARfit(vts = data.ts[j:(n-1-k+j),], net = net, alphaOrder = 2, betaOrder = c(1,1), globalalpha = globalAlpha)
+            err <- err + sum((data[(n-k+j),] - predict(fit))^2)
         }
         errors <- c(errors, err/k)
     }
     return(errors)
 }
-
 getRandomSample <- function(size = 5, errors, sample = 100, erdos_prob=0.3){
     err <- c()
     for (i in 1:sample){
@@ -56,27 +54,45 @@ getRandomSample <- function(size = 5, errors, sample = 100, erdos_prob=0.3){
         err <- c(err, errors[i])
     }
     return(err)
-} 
+}
+hamming_distance <- function(i, j){
+    return(sum(as.integer(intToBits(i)) != as.integer(intToBits(j))))
+}
+edge_to_int <- function(edge,size){
+    # Parameters
+    # edge: list of vectors (a,b) where 1 < a < b, eg. list(c(4,5),c(2,3))
+    # size: number of nodes
+    
+    index <- function(edge){
+        a <- edge[1]
+        b <- edge[2]
+        return(a + (b-1)*(b-2)/2)
+    }
+    indices <- sapply(edge, index)
+    result <- c()
+    for (i in 1:(2^(size*(size-1)/2) - 1)) {
+        if (all(as.integer(intToBits(i))[indices] == 1)) {
+            result <- c(result, i)
+        }
+    }
+    return(result)
+}
 
-error <- generateError(size=6, k=40, seed = 1234, order =2)
-write.table(error, file = "./error_n=6_k=40_true=2_fit=2.txt", sep = "\t")
-error <- read.table("./error_n=6_k=40_true=2_fit=2.txt", sep = "\t")
-error <- as.matrix(error)
-sample_error <- getRandomSample(size=6, errors = error, sample = 1000, erdos_prob = 0.1)
+error <- generateError(size=6, k=40, n=500, seed = 1000, order =2, globalAlpha = FALSE)
+write.table(error, file = "./error007.txt", sep = "\t")
 
 # Plot histogram of error and sample_errors
-pdf(file="./hist(n=6,k=40,t=2,f=2).pdf")
+pdf(file="./hist007.pdf")
 # plot histogram of errors
-hist(as.numeric(error), breaks = 100, col = "lightblue", border = "black", xlab = "Error", main = "Histogram of Errors", xlim = range(c(error, sample_error)), ylim = c(0, 10000))
-hist(as.numeric(sample_error), breaks = 100, col = "#187534", border = "black", add = TRUE)
-legend("topright", legend = c("Errors", "Sample Errors"), fill = c("lightblue", "#187534"))
+hist(as.numeric(error), breaks = 100, col = "lightblue", border = "black", xlab = "Error", main = "Histogram of Errors", xlim = range(c(error)), ylim = c(0, 10000))
+legend("topright", legend = c("Errors"), fill = c("lightblue"))
 dev.off()
 
-min_error <- 0
-for (i in 1:100){
-    sample_error <- getRandomSample(size=6, errors = error, sample = 5, erdos_prob = 0.1)
-    min_error <- min_error + min(sample_error)
-}
-print(min_error/100)
-summary(error)
-summary(sample_error)
+error <- as.matrix(read.table("./error007.txt", sep = "\t"))
+set.seed(1000)
+true_graph <- erdos.renyi.game(6, p=0.3, type = "gnp")
+true_int <- mat_to_int(as_adjacency_matrix(true_graph))
+distances <- lapply(1:(2^15-1), function(x) hamming_distance(true_int, x))
+pdf(file="./hHammingDistances007.pdf")
+plot(error, distances, main = "Error vs Hamming Distance", xlab = "Error", ylab = "Hamming Distance")
+dev.off()

@@ -1,0 +1,6 @@
+** Explanation of Data **
+
+- error005 : 6 nodes, k=40, n=500, local alphas, seed 1234, order = 2
+- error006 : 6 nodes, k=40, n=500, global alphas, seed 1234, order = 2
+- error007 : 6 nodes, k=40, n=500, global alphas, seed 1000, order = 2
+    The aim is to see if we get a similar shape as before
